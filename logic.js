@@ -208,9 +208,15 @@ function handleCardInput(e) {
 
     if (e.key === "Enter") {
         let selectedCards = [...selected].map(i => hand[i]); 
-        if (selectedCards.length != 5) return; 
+        if (selectedCards.length != 5) {
+            addNotification("Invalid Hand!", `Select ${5 - selectedCards.length} more cards!`)
+           return; 
+        }
 
-        if (remHands == 0) return; 
+        if (remHands == 0) {
+            addNotification("No Hands!", `Wait Wait ${((lastHandUpdate + handRefresh) - ((performance.now() -  startTime)/1000)).toFixed(2)}s!`)
+            return; 
+        }
         scoreSelectedCards(selectedCards);
         discardSelected(false);
         sortHand();
@@ -259,6 +265,7 @@ function shootBullet() {
 function discardSelected(isCounted) {
 
     if (discards == 0 && isCounted) {
+        addNotification("No Discards", `Wait ${((lastDiscardUpdate + discardRefresh) - ((performance.now() -  startTime)/1000)).toFixed(2)}s!` )
         return; 
     }
 
@@ -523,6 +530,7 @@ function updateBullets(delta) {
         return true;
     });
 }
+
 
 function openDraft() {
     const cards = [];
