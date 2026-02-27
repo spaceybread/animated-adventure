@@ -404,9 +404,9 @@ export function drawPauseScreen(state) {
         ["",                "Low card x3: +1 hand & discard"],
         ["Flush",           "+max health (by high card value)"],
         ["Straight",        "+bullets (by low card value)"],
-        ["Three of a Kind", "+bullet damage (by high card value)"],
+        ["Three of a Kind", "xbullet damage (by high card value)"],
         ["Two Pair",        "+player speed (by pair value)"],
-        ["Pair",            "+fire rate (by pair value)"],
+        ["Pair",            "xfire rate (by pair value)"],
         ["High Card",       "Heal (by high card value)"],
     ];
     

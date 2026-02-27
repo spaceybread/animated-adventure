@@ -293,6 +293,7 @@ function discardSelected(isCounted) {
 }
 
 export function evaluateHand(cards) {
+    cards = [...cards].sort((a, b) => b.value - a.value); 
     const isFlush = cards.every(c => c.suit === cards[0].suit);
 
     let isStraight = true;
@@ -322,6 +323,7 @@ export function evaluateHand(cards) {
 }
 
 function scoreSelectedCards(cards) {
+    cards = [...cards].sort((a, b) => b.value - a.value); 
     const result = evaluateHand(cards);
     playedHand = result;
 
@@ -608,7 +610,7 @@ export function getState() {
         lastHandUpdate = timeScore; 
     }
 
-    gameStageModifier = 1 + (Math.floor(timeScore / 7.5)) / 10; 
+    gameStageModifier = 1 + (Math.floor(timeScore / 7.5)) / 20; 
 
 
     let nearestDir = null;
