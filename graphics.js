@@ -99,16 +99,75 @@ export function drawWorld(camera) {
     }
 }
 
-export function drawPlayer(player, camera) {
-    ctx.fillStyle = "red";
-    ctx.fillRect(
-        player.x - camera.x - player.size / 2,
-        player.y - camera.y - player.size / 2,
-        player.size,
-        player.size
-    );
+export function drawPlayer(player, camera, state) {
+    const sx = player.x - camera.x;
+    const sy = player.y - camera.y;
+    const s = player.size;
+
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(sx - s / 2 + 3, sy - s / 2 + 3, s, s);
+
+    ctx.fillStyle = state.playerHitTimer > 0 ? "#ff4444" : "red";
+    ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+
+    if (state.playerHitTimer > 0) {
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx - s / 2, sy - s / 2, s, s);
+    }
+
+    if (state.nearestDir) {
+        const tipDist = s / 2 + 10;
+        ctx.strokeStyle = state.playerHitTimer > 0 ? "white" : "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx + state.nearestDir.x * (s / 2 + 2),
+                   sy + state.nearestDir.y * (s / 2 + 2));
+        ctx.lineTo(sx + state.nearestDir.x * tipDist,
+                   sy + state.nearestDir.y * tipDist);
+        ctx.stroke();
+
+        const angle = Math.atan2(state.nearestDir.y, state.nearestDir.x);
+        ctx.beginPath();
+        ctx.moveTo(sx + state.nearestDir.x * tipDist,
+                   sy + state.nearestDir.y * tipDist);
+        ctx.lineTo(sx + Math.cos(angle + 2.5) * (tipDist - 5),
+                   sy + Math.sin(angle + 2.5) * (tipDist - 5));
+        ctx.lineTo(sx + Math.cos(angle - 2.5) * (tipDist - 5),
+                   sy + Math.sin(angle - 2.5) * (tipDist - 5));
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fill();
+    }
 }
 
+export function drawEnemies(enemies, camera) {
+    for (const e of enemies) {
+        const sx = e.x - camera.x;
+        const sy = e.y - camera.y;
+        const s = e.size;
+
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.fillRect(sx - s / 2 + 3, sy - s / 2 + 3, s, s);
+
+        ctx.fillStyle = e.hitTimer > 0 ? "#ff00ff" : "purple";
+        ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+
+        if (e.hitTimer > 0) {
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx - s / 2, sy - s / 2, s, s);
+        }
+
+        const barW = 30, barH = 4;
+        const bx = sx - barW / 2;
+        const by = sy - s / 2 - 8;
+        ctx.fillStyle = "#333";
+        ctx.fillRect(bx, by, barW, barH);
+        ctx.fillStyle = "#e53935";
+        ctx.fillRect(bx, by, barW * (e.health / 100), barH);
+    }
+}
 
 export function drawHand(hand, selected, activeIndex) {
     const cardWidth = 100;
@@ -180,27 +239,6 @@ function drawCard(x, y, w, h, card, isSelected) {
     ctx.font = "48px monospace";
     ctx.textAlign = "center";
     ctx.fillText(card.suit, x + w / 2, y + h / 2 + 15);
-}
-
-export function drawEnemies(enemies, camera) {
-    for (const e of enemies) {
-        ctx.fillStyle = "purple";
-        ctx.fillRect(
-            e.x - camera.x - e.size / 2,
-            e.y - camera.y - e.size / 2,
-            e.size,
-            e.size
-        );
-
-        const barW = 30, barH = 4;
-        const bx = e.x - camera.x - barW / 2;
-        const by = e.y - camera.y - e.size / 2 - 8;
-        ctx.fillStyle = "#333";
-        ctx.fillRect(bx, by, barW, barH);
-
-        ctx.fillStyle = "#e53935";
-        ctx.fillRect(bx, by, barW * (e.health / 100), barH);
-    }
 }
 
 export function drawBullets(bullets, camera) {
@@ -275,6 +313,8 @@ export function drawStatsPanel(state) {
         `Hand Refresh:    ${state.handRefresh}s`,
         `Discard Refresh: ${state.discardRefresh}s`,
         `Hand Size:       ${state.maxHandSize}`,
+        `Enemies Killed:  ${state.enemiesKilled}`,
+        `Kill Streak:     ${state.currentStreak}`,
     ];
 
     const lineH = 18;
@@ -295,7 +335,8 @@ export function drawStatsPanel(state) {
     ctx.textAlign = "left";
 
     lines.forEach((line, i) => {
-        ctx.fillStyle = "white";
+        const isStreak = line.startsWith("Kill Streak");
+        ctx.fillStyle = (isStreak && state.currentStreak >= 10) ? "#FFD700" : "white";
         ctx.fillText(line, panelX + padding, panelY + padding + i * lineH + 13);
     });
 }
@@ -421,4 +462,32 @@ export function drawGameOverScreen(state) {
     ctx.font = "18px monospace";
     ctx.fillStyle = "#aaa";
     ctx.fillText("press R to restart", canvas.width / 2, canvas.height / 2 + 100);
+}
+
+export function drawNotifications(notifications) {
+    const centerX = canvas.width / 2;
+    const baseY = canvas.height / 2 - 80;
+
+    notifications.forEach((n, i) => {
+        const age = 2.5 - n.timer;
+        
+
+        const slideOffset = Math.max(0, (0.3 - age) / 0.3) * 30;
+        const alpha = n.timer < 0.5 ? n.timer / 0.5 : 1;
+        
+        const y = baseY - i * 70 + slideOffset;
+
+        ctx.font = "bold 36px monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+        ctx.shadowColor = "rgba(0,0,0,0.8)";
+        ctx.shadowBlur = 8;
+        ctx.fillText(n.title, centerX, y);
+
+        ctx.font = "16px monospace";
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.fillText(n.subtitle, centerX, y + 24);
+
+        ctx.shadowBlur = 0;
+    });
 }

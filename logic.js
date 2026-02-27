@@ -50,8 +50,23 @@ let highScore = parseInt(localStorage.getItem("highScore") || "0");
 let pausedAt = 0;
 let totalPausedTime = 0;
 
+let playerHitTimer = 0;
+const HIT_FLASH_DURATION = 0.15;
+let enemiesKilled = 0;
+let currentStreak = 9;
+
 function sortHand() {
     hand.sort((b, a) => a.value - b.value);
+}
+
+let notifications = [];
+
+function addNotification(title, subtitle) {
+    notifications.push({
+        title,
+        subtitle,
+        timer: 2.5
+    });
 }
 
 
@@ -273,6 +288,8 @@ function scoreSelectedCards(cards) {
             bulletCountModifier += cards[4].value;
             shootInterval = Math.min(0.1, shootInterval - 0.4); 
             enemies = []; 
+            addNotification("Royal Flush", "Screen cleared · +2 hand size · +bullets · +fire rate");
+
             return; 
         } else {
             // straight flush
@@ -281,6 +298,8 @@ function scoreSelectedCards(cards) {
             score += ect * 16; 
 
             enemies = []; 
+            addNotification("Straight Flush", "Screen cleared · score bonus");
+
             return; 
         }
     }
@@ -304,6 +323,7 @@ function scoreSelectedCards(cards) {
             playedHand = "Four of a Kind";
             // get a larger hand
             maxHandSize += 1; 
+            addNotification("Four of a Kind", "+1 hand size");
             return; 
         } else {
             // full house
@@ -316,9 +336,11 @@ function scoreSelectedCards(cards) {
             if (cards[0].value == cards[2].value) {
                 discardRefresh = Math.max(1, discardRefresh - Math.ceil(cards[4].value / 5))
                 handRefresh = Math.max(2, handRefresh - Math.ceil(cards[4].value / 5))
+                addNotification("Full House", "Faster hand & discard refresh");
             } else {
                 maxDiscards += 1; 
                 maxHands += 1; 
+                addNotification("Full House", "+1 max hands · +1 max discards");
             }
             
 
@@ -331,6 +353,8 @@ function scoreSelectedCards(cards) {
         playedHand = "Flush";
         // increase max health
         maxPlayerHealth += cards[0].value;
+        addNotification("Flush", `+${cards[0].value} max health`);
+
         return; 
     }
 
@@ -339,6 +363,8 @@ function scoreSelectedCards(cards) {
         playedHand = "Straight";
         // increase number of bullets
         bulletCountModifier += Math.ceil(cards[4].value / 2); 
+        addNotification("Straight", `+${Math.ceil(cards[4].value / 2)} bullet count`);
+
         return;     
     }
 
@@ -351,12 +377,14 @@ function scoreSelectedCards(cards) {
             playedHand = "Three of a Kind"; 
             // buff damage
             bulletDamage += Math.ceil(cards[0].value / 2);
+            addNotification("Three of a Kind", `+${Math.ceil(cards[0].value / 2)} bullet damage`);
             return; 
         } else {
             playedHand = "Two Pair";
             // speed up the player 
             let ct = cards[0].value;
             if (frequency[ct] == 1) ct = cards[1].value;  
+            addNotification("Two Pair", `+${ct} player speed`);
             playerSpeed += ct; 
 
             return; 
@@ -370,6 +398,8 @@ function scoreSelectedCards(cards) {
             if (frequency[cards[i].value] == 2) {
                 // heal the player
                     shootInterval = Math.max(0.1, shootInterval - 0.01 * cards[i].value); 
+                    addNotification("Pair", `-${(0.01 * cards[i].value).toFixed(2)}s fire rate`);
+
                 return; 
             }
         }
@@ -380,6 +410,8 @@ function scoreSelectedCards(cards) {
     playedHand = "High Card"; 
     // heal the player
     playerHealth = Math.min(maxPlayerHealth, playerHealth + cards[0].value); 
+    addNotification("High Card", `+${cards[0].value} health`);
+
     return; 
 }
 
@@ -414,9 +446,20 @@ export function updateLogic(delta) {
     camera.x = player.x - canvas.width / 2;
     camera.y = player.y - canvas.height / 2;
 
+    playerHitTimer = Math.max(0, playerHitTimer - delta);
+    for (const e of enemies) {
+        if (e.hitTimer > 0) e.hitTimer = Math.max(0, e.hitTimer - delta);
+    }
+
+    notifications = notifications.filter(n => {
+        n.timer -= delta;
+        return n.timer > 0;
+    });
+
     spawnEnemies(delta);
     updateEnemies(delta);
     updateBullets(delta);
+    
     checkPlayerEnemyCollision();
     checkItemPickup();
 }
@@ -459,6 +502,7 @@ function updateBullets(delta) {
             const dy = b.y - e.y;
             if (Math.hypot(dx, dy) < e.size) {
                 e.health -= bulletDamage;
+                e.hitTimer = HIT_FLASH_DURATION; 
                 b.life = 0;
             }
         }
@@ -467,7 +511,12 @@ function updateBullets(delta) {
     bullets = bullets.filter(b => b.life > 0);
     enemies = enemies.filter(e => {
         if (e.health <= 0) {
-            if (Math.random() < 0.1) {
+            enemiesKilled++;
+            currentStreak++;
+            if (currentStreak % 10 === 0) {
+                addNotification(`${currentStreak} Kill Streak!`, "You're on fire!");
+            }
+            if (Math.random() < 0.25) {
                 const type = Math.random() < 0.5 ? "card" : "apple";
                 items.push({ x: e.x, y: e.y, type });
             }
@@ -484,6 +533,8 @@ function checkPlayerEnemyCollision() {
         if (Math.hypot(dx, dy) < player.size / 2 + e.size) {
             playerHealth -= 20; 
             const len = Math.hypot(dx, dy);
+            playerHitTimer = HIT_FLASH_DURATION;
+            currentStreak = 0;
             e.x -= (dx / len) * 30;
             e.y -= (dy / len) * 30;
         }
@@ -536,8 +587,20 @@ export function getState() {
         lastHandUpdate = timeScore; 
     }
 
-    gameStageModifier = 1 + (Math.floor(timeScore / 60)) / 10; 
+    gameStageModifier = 1 + (Math.floor(timeScore / 30)) / 10; 
 
+
+    let nearestDir = null;
+    if (enemies.length > 0) {
+        let nearest = enemies.reduce((best, e) => {
+            return Math.hypot(e.x - player.x, e.y - player.y) 
+                Math.hypot(best.x - player.x, best.y - player.y) ? e : best;
+        }, enemies[0]);
+        const ddx = nearest.x - player.x;
+        const ddy = nearest.y - player.y;
+        const dlen = Math.hypot(ddx, ddy);
+        nearestDir = { x: ddx / dlen, y: ddy / dlen };
+    }
     
 
     return {
@@ -567,7 +630,12 @@ export function getState() {
         items,
         gameOver,
         paused,
-        highScore
+        highScore,
+        playerHitTimer,
+        nearestDir,
+        enemiesKilled,
+        currentStreak,
+        notifications
     };
 }
 
@@ -606,4 +674,8 @@ export function restartGame() {
     gameStageModifier = 1;
     pausedAt = 0;
     totalPausedTime = 0;
+    playerHitTimer = 0;
+    enemiesKilled = 0;
+    currentStreak = 0;
+    notifications = [];
 }

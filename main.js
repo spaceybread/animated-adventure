@@ -9,7 +9,8 @@ import {
     drawStatsPanel,
     drawItems,
     drawPauseScreen,
-    drawGameOverScreen
+    drawGameOverScreen,
+    drawNotifications
 } from "./graphics.js";
 import {
     initLogic,
@@ -54,13 +55,14 @@ function gameLoop(now) {
     const state = getState();
 
     drawWorld(state.camera);
-    drawPlayer(state.player, state.camera);
+    drawPlayer(state.player, state.camera, state);
     drawEnemies(state.enemies, state.camera);
     drawBullets(state.bullets, state.camera); 
     drawUI(state);
     drawStatsPanel(state);
     drawHand(state.hand, state.selected, state.activeIndex);
     drawItems(state.items, state.camera);
+    drawNotifications(state.notifications);
     if (state.paused) drawPauseScreen(state);
     if (state.gameOver) drawGameOverScreen(state);
     
