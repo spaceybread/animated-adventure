@@ -1,4 +1,6 @@
-import { evaluateHand } from "./logic.js";
+import { BasePlayerLogic } from "./logic.js";
+const _evalInstance = new BasePlayerLogic();
+const evaluateHand = (cards) => _evalInstance.evaluateHand(cards);
 
 
 let canvas, ctx;
