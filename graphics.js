@@ -212,6 +212,30 @@ export function drawBullets(bullets, camera) {
     }
 }
 
+export function drawItems(items, camera) {
+    for (const item of items) {
+        const sx = item.x - camera.x;
+        const sy = item.y - camera.y;
+
+        if (item.type === "card") {
+            ctx.fillStyle = "white";
+            ctx.fillRect(sx - 8, sy - 12, 16, 22);
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx - 8, sy - 12, 16, 22);
+
+        } else if (item.type === "apple") {
+            ctx.fillStyle = "#e53935";
+            ctx.fillRect(sx - 7, sy - 7, 14, 14);
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx - 7, sy - 7, 14, 14);
+            ctx.fillStyle = "#43a047";
+            ctx.fillRect(sx, sy - 10, 2, 4);
+        }
+    }
+}
+
 export function drawUI(state) {
     ctx.fillStyle = "white";
     ctx.font = "20px monospace";
@@ -237,4 +261,164 @@ export function drawUI(state) {
     ctx.fillStyle = "white";
     ctx.font = "12px monospace";
     ctx.fillText(`HP: ${state.playerHealth} / ${state.playerMaxHealth}`, bx + 4, by + 15);
+}
+
+export function drawStatsPanel(state) {
+    const lines = [
+        `Player Speed:    ${Math.floor(state.playerSpeed)}`,
+        `Bullet Damage:   ${state.bulletDamage}`,
+        `Bullet Count:    ${state.bulletCountModifier}`,
+        `Fire Rate:       ${state.shootInterval.toFixed(2)}s`,
+        `Max Health:      ${state.playerMaxHealth}`,
+        `Max Hands:       ${state.maxHands}`,
+        `Max Discards:    ${state.maxDiscards}`,
+        `Hand Refresh:    ${state.handRefresh}s`,
+        `Discard Refresh: ${state.discardRefresh}s`,
+        `Hand Size:       ${state.maxHandSize}`,
+    ];
+
+    const lineH = 18;
+    const padding = 10;
+    const panelW = 260;
+    const panelH = lines.length * lineH + padding * 2.5;
+    const panelX = 0;
+    const panelY = canvas.height - panelH;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(panelX, panelY, panelW, panelH);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+    ctx.font = "15px monospace";
+    ctx.textAlign = "left";
+
+    lines.forEach((line, i) => {
+        ctx.fillStyle = "white";
+        ctx.fillText(line, panelX + padding, panelY + padding + i * lineH + 13);
+    });
+}
+
+export function drawPauseScreen(state) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = "center";
+
+    ctx.font = "bold 48px monospace";
+    ctx.fillStyle = "white";
+    ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2 - 60);
+
+    ctx.font = "24px monospace";
+    ctx.fillText(`Score: ${Math.floor(state.score)}`, canvas.width / 2, canvas.height / 2);
+    ctx.fillText(`High Score: ${state.highScore}`, canvas.width / 2, canvas.height / 2 + 35);
+
+    ctx.font = "18px monospace";
+    ctx.fillStyle = "#aaa";
+    ctx.fillText("press H to resume", canvas.width / 2, canvas.height / 2 + 85);
+
+    const handInfo = [
+        ["Royal Flush",     "Clear screen, massive score bonus,"],
+        ["",                "+2 hand size, +bullets, +fire rate"],
+        ["Straight Flush",  "Clear screen + score bonus"],
+        ["Four of a Kind",  "+1 hand size"],
+        ["Full House",      "High card x3: faster refresh"],
+        ["",                "Low card x3: +1 hand & discard"],
+        ["Flush",           "+max health (by high card value)"],
+        ["Straight",        "+bullets (by low card value)"],
+        ["Three of a Kind", "+bullet damage (by high card value)"],
+        ["Two Pair",        "+player speed (by pair value)"],
+        ["Pair",            "+fire rate (by pair value)"],
+        ["High Card",       "Heal (by high card value)"],
+    ];
+    
+    const colX = canvas.width / 2;
+    const startY = canvas.height / 2 + 140;
+    const lineH = 22;
+    const panelW = 620;
+    const panelH = handInfo.length * lineH + 30;
+    
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(colX - panelW / 2, startY - 30, panelW, panelH);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(colX - panelW / 2, startY - 30, panelW, panelH);
+    const panelX = colX - panelW / 2 + 15;
+    const divider = panelX + 220;     
+    
+    handInfo.forEach(([hand, desc], i) => {
+        const y = startY + i * lineH;
+    
+        ctx.font = "bold 14px monospace";
+        ctx.fillStyle = "#FFD700";
+        ctx.textAlign = "right";
+        ctx.fillText(hand, divider, y);
+    
+        ctx.font = "14px monospace";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText(desc, divider + 15, y);
+    });
+
+    const controls = [
+        ["W A S D",      "Move"],
+        ["Arrow Keys",   "Navigate / Select cards"],
+        ["Enter",        "Play selected hand (need 5)"],
+        ["Shift",        "Discard selected cards"],
+        ["H",            "Pause / Unpause"],
+    ];
+    
+    const ctrlStartY = startY + panelH - 15;
+    const ctrlLineH = 22;
+    const ctrlPanelW = 620;
+    const ctrlPanelH = controls.length * ctrlLineH + 30;
+    
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(colX - ctrlPanelW / 2, ctrlStartY - 15, ctrlPanelW, ctrlPanelH);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(colX - ctrlPanelW / 2, ctrlStartY - 15, ctrlPanelW, ctrlPanelH);
+    
+    const ctrlDivider = colX - ctrlPanelW / 2 + 15 + 220;
+    
+    controls.forEach(([key, desc], i) => {
+        const y = ctrlStartY + i * ctrlLineH;
+    
+        ctx.font = "bold 14px monospace";
+        ctx.fillStyle = "#88ccff";
+        ctx.textAlign = "right";
+        ctx.fillText(key, ctrlDivider, y);
+    
+        ctx.font = "14px monospace";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText(desc, ctrlDivider + 15, y);
+    });
+}
+
+export function drawGameOverScreen(state) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = "center";
+
+    ctx.font = "bold 48px monospace";
+    ctx.fillStyle = "#e53935";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 80);
+
+    ctx.font = "24px monospace";
+    ctx.fillStyle = "white";
+    ctx.fillText(`Score: ${Math.floor(state.score)}`, canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText(`High Score: ${state.highScore}`, canvas.width / 2, canvas.height / 2 + 20);
+
+    if (Math.floor(state.score) >= state.highScore) {
+        ctx.font = "bold 20px monospace";
+        ctx.fillStyle = "#FFD700";
+        ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, canvas.height / 2 + 60);
+    }
+
+    ctx.font = "18px monospace";
+    ctx.fillStyle = "#aaa";
+    ctx.fillText("press R to restart", canvas.width / 2, canvas.height / 2 + 100);
 }

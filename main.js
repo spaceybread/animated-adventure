@@ -5,12 +5,17 @@ import {
     drawPlayer,
     drawBullets,
     drawEnemies,
-    drawHand
+    drawHand,
+    drawStatsPanel,
+    drawItems,
+    drawPauseScreen,
+    drawGameOverScreen
 } from "./graphics.js";
 import {
     initLogic,
     updateLogic,
-    getState
+    getState,
+    restartGame
 } from "./logic.js";
 
 const canvas = document.getElementById("game");
@@ -27,6 +32,14 @@ window.addEventListener("resize", () => {
 
 initGraphics(canvas, ctx);
 initLogic(canvas);
+
+document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "r") {
+        const state = getState();
+        if (state.gameOver) restartGame();
+    }
+});
+
 
 let lastTime = performance.now();
 
@@ -45,7 +58,12 @@ function gameLoop(now) {
     drawEnemies(state.enemies, state.camera);
     drawBullets(state.bullets, state.camera); 
     drawUI(state);
+    drawStatsPanel(state);
     drawHand(state.hand, state.selected, state.activeIndex);
+    drawItems(state.items, state.camera);
+    if (state.paused) drawPauseScreen(state);
+    if (state.gameOver) drawGameOverScreen(state);
+    
     requestAnimationFrame(gameLoop);
 }
 
