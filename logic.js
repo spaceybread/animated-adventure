@@ -49,6 +49,9 @@ export class BasePlayerLogic {
         this.invincible = false;
         this.notifications = [];
         this.particles = [];
+        this.enemyBullets = [];
+        this.lasers = [];
+        this._laserSpawnTimer = 0;
 
         this.POWERUPS = [
             { name: "Speed Boost",   desc: "+50 speed for 10s",   apply: () => { this.playerSpeed += 50;      this._addTempEffect(() => this.playerSpeed -= 50, 10); } },
@@ -148,6 +151,8 @@ export class BasePlayerLogic {
         this._updateEnemies(delta);
         this._updateBullets(delta);
         this._checkPlayerEnemyCollision();
+        this._updateLaserSpawning(delta);
+        this._updateLasers(delta);
         this._checkItemPickup();
     }
 
@@ -203,6 +208,8 @@ export class BasePlayerLogic {
             tempEffects: this.tempEffects.map(e => ({ timer: e.timer, isShield: e.isShield })),
             particles: this.particles,
             playerChoice: this.playerChoice,
+            enemyBullets: this.enemyBullets,
+            lasers: this.lasers,
         };
     }
 
@@ -247,6 +254,9 @@ export class BasePlayerLogic {
         this.notifications = [];
         this.draft = null;
         this.tempEffects = [];
+        this.enemyBullets = [];
+        this.lasers = [];
+        this._laserSpawnTimer = 0;
         this.invincible = false;
     }
 
@@ -437,28 +447,161 @@ export class BasePlayerLogic {
     _spawnEnemies(delta) {
         if (Math.random() < delta * 1.5 * this.gameStageModifier) {
             const angle = Math.random() * Math.PI * 2;
-            this.enemies.push({
+            const roll = Math.random();
+            const base = {
                 x: this.player.x + Math.cos(angle) * 800,
                 y: this.player.y + Math.sin(angle) * 800,
-                size: 14,
-                health: this.enemyMaxHealth * this.gameStageModifier,
-                maxHealth: this.enemyMaxHealth * this.gameStageModifier,
                 hitTimer: 0,
-            });
+            };
+    
+            if (roll < 0.5) {
+                // weak ass
+                this.enemies.push({ ...base, type: "normal", size: 14,
+                    health: this.enemyMaxHealth * this.gameStageModifier,
+                    maxHealth: this.enemyMaxHealth * this.gameStageModifier });
+            } else if (roll < 0.7) {
+                // aura farmer
+                const hp = this.enemyMaxHealth * 5 * this.gameStageModifier;
+                this.enemies.push({ ...base, type: "tank", size: 26,
+                    health: hp, maxHealth: hp, auraRadius: 180 });
+            } else if (roll < 0.9) {
+                // glass cannon
+                this.enemies.push({ ...base, type: "shooter", size: 9,
+                    health: 1, maxHealth: 1, shootTimer: 0,
+                    shootInterval: 2.5 + Math.random() * 1.5 });
+            }
+        }
+    }
+
+    _updateLaserSpawning(delta) {
+        const currentTime = (performance.now() - this.startTime - this.totalPausedTime) / 1000;
+    
+        if (currentTime < 5) return;
+    
+        this._laserSpawnTimer += delta;
+    
+        let laserInterval = Math.max(
+            15,
+            40 - Math.floor((currentTime - 100) / 30) * 5
+        );
+
+        laserInterval = 15; 
+    
+        if (this._laserSpawnTimer >= laserInterval) {
+            this._laserSpawnTimer = 0;
+            this._spawnLaser();
         }
     }
 
     _updateEnemies(delta) {
+        let inAura = false;
+        for (const e of this.enemies) {
+            if (e.type === "tank") {
+                if (Math.hypot(e.x - this.player.x, e.y - this.player.y) < e.auraRadius) {
+                    inAura = true;
+                }
+            }
+        }
+        this._inTankAura = inAura;
+    
         for (const e of this.enemies) {
             const dx = this.player.x - e.x;
             const dy = this.player.y - e.y;
             const len = Math.hypot(dx, dy);
-            e.x += (dx / len) * this.ENEMY_SPEED * this.gameStageModifier * delta;
-            e.y += (dy / len) * this.ENEMY_SPEED * this.gameStageModifier * delta;
+            const speed = e.type === "tank" ? this.ENEMY_SPEED * 0.35 : this.ENEMY_SPEED;
+    
+            e.x += (dx / len) * speed * this.gameStageModifier * delta;
+            e.y += (dy / len) * speed * this.gameStageModifier * delta;
+    
+            if (e.type === "shooter") {
+                e.shootTimer += delta;
+                if (e.shootTimer >= e.shootInterval) {
+                    e.shootTimer = 0;
+                    const spread = (Math.random() - 0.5) * 1.2;
+                    const aimAngle = Math.atan2(dy, dx) + spread;
+                    const ENEMY_BULLET_SPEED = 220;
+                    this.enemyBullets.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(aimAngle) * ENEMY_BULLET_SPEED,
+                        vy: Math.sin(aimAngle) * ENEMY_BULLET_SPEED,
+                        life: 4,
+                    });
+                }
+            }
         }
     }
 
+    _spawnLaser() {
+        const angle = Math.random() * Math.PI;
+        const WARNING_DURATION = 2.0;
+        const ACTIVE_DURATION = 0.3;
+        const HALF_LEN = 2000;
+    
+        const cx = this.player.x + (Math.random() - 0.5) * 600;
+        const cy = this.player.y + (Math.random() - 0.5) * 600;
+    
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+    
+        this.lasers.push({
+            x1: cx - cos * HALF_LEN,
+            y1: cy - sin * HALF_LEN,
+            x2: cx + cos * HALF_LEN,
+            y2: cy + sin * HALF_LEN,
+            cx, cy, cos, sin,
+            halfLen: HALF_LEN,
+            width: 28,
+            phase: "warning",
+            timer: WARNING_DURATION,
+            warningDuration: WARNING_DURATION,
+            activeDuration: ACTIVE_DURATION,
+        });
+    }
+    
+    _updateLasers(delta) {
+        this.lasers = this.lasers.filter(laser => {
+            laser.timer -= delta;
+    
+            if (laser.phase === "warning" && laser.timer <= 0) {
+                laser.phase = "active";
+                laser.timer = laser.activeDuration;
+    
+                this.enemies = this.enemies.filter(e => {
+                    const dx = e.x - laser.cx;
+                    const dy = e.y - laser.cy;
+                    const proj = dx * laser.cos + dy * laser.sin;
+                    const perpDist = Math.abs(dx * laser.sin - dy * laser.cos);
+                    if (perpDist < laser.width / 2 + e.size && Math.abs(proj) < laser.halfLen) {
+                        this._onEnemyDeath(e);
+                        return false;
+                    }
+                    return true;
+                });
+    
+                this.enemyBullets = this.enemyBullets.filter(b => {
+                    const dx = b.x - laser.cx;
+                    const dy = b.y - laser.cy;
+                    const perpDist = Math.abs(dx * laser.sin - dy * laser.cos);
+                    return perpDist >= laser.width / 2;
+                });
+    
+                if (!this.invincible) {
+                    const dx = this.player.x - laser.cx;
+                    const dy = this.player.y - laser.cy;
+                    const perpDist = Math.abs(dx * laser.sin - dy * laser.cos);
+                    if (perpDist < laser.width / 2 + this.player.size / 2) {
+                        this.playerHealth = 0; // instant kill
+                        this.playerHitTimer = this.HIT_FLASH_DURATION;
+                    }
+                }
+            }
+    
+            return laser.timer > 0;
+        });
+    }
+
     _updateBullets(delta) {
+        // player bullets
         for (const b of this.bullets) {
             b.x += b.vx * delta; b.y += b.vy * delta; b.life -= delta;
         }
@@ -485,6 +628,22 @@ export class BasePlayerLogic {
             }
             return true;
         });
+    
+        // enemy bullets
+        for (const b of this.enemyBullets) {
+            b.x += b.vx * delta; b.y += b.vy * delta; b.life -= delta;
+        }
+        if (!this.invincible) {
+            for (const b of this.enemyBullets) {
+                if (Math.hypot(b.x - this.player.x, b.y - this.player.y) < this.player.size) {
+                    this.playerHealth -= 10;
+                    this.playerHitTimer = this.HIT_FLASH_DURATION;
+                    this.currentStreak = 0;
+                    b.life = 0;
+                }
+            }
+        }
+        this.enemyBullets = this.enemyBullets.filter(b => b.life > 0);
     }
 
     // subclasses can override for death effects
@@ -503,6 +662,14 @@ export class BasePlayerLogic {
     }
 
     _checkPlayerEnemyCollision() {
+        
+        if (!this._basePlayerSpeed) this._basePlayerSpeed = this.playerSpeed;
+        const targetSpeed = this._inTankAura
+            ? this._basePlayerSpeed * 0.9
+            : this._basePlayerSpeed;
+        
+        this.playerSpeed += (targetSpeed - this.playerSpeed) * 0.15;
+    
         for (const e of this.enemies) {
             const dx = this.player.x - e.x;
             const dy = this.player.y - e.y;

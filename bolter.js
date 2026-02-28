@@ -9,7 +9,7 @@ class BolterLogic extends BasePlayerLogic {
         this.shootInterval = 3;
     }
 
-    get playerChoice() { return "bolter"; }
+    get playerChoice() { return "zapper"; }
 
     _shootBullet() {
         if (this.enemies.length === 0) return;
