@@ -556,7 +556,7 @@ export class BasePlayerLogic {
 
     _updateBossSpawning(delta) {
         this._bossTimer -= delta;
-        let c = Math.ceil((performance.now() - this.startTime) / (1000 * 200)); 
+        let c = Math.floor((performance.now() - this.startTime) / (1000 * 200)); 
         
         if (this._bossTimer <= 0) {
             for (; c > 0; c--) {
