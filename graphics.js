@@ -191,52 +191,146 @@ export function drawEnemies(enemies, camera) {
         }
 
         if (e.type === "boss") {
-            const sx = e.x - camera.x;
-            const sy = e.y - camera.y;
-            const s = e.size;
+
+            if (e.bossType === "mosspit") {
+                const time = performance.now() * 0.001;
+                const pulse = 0.5 + 0.5 * Math.sin(time * 1.5);
+            
+                for (let ring = 0; ring < 3; ring++) {
+                    const ringPulse = 0.5 + 0.5 * Math.sin(time * 1.5 + ring * 1.2);
+                    const ringRadius = e.auraRadius * (0.5 + ring * 0.25);
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, ringRadius, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(30, 120, 20, ${0.12 - ring * 0.03})`;
+                    ctx.lineWidth = 18 - ring * 4;
+                    ctx.stroke();
+                }
+            
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(sx, sy, e.auraRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(60, 180, 30, ${0.25 + pulse * 0.15})`;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([20, 15]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+            
+                const segments = 32;
+                ctx.save();
+                ctx.beginPath();
+                for (let i = 0; i <= segments; i++) {
+                    const a = (i / segments) * Math.PI * 2;
+                    const noise = Math.sin(a * 4 + time * 2) * 18 + Math.sin(a * 7 - time) * 10;
+                    const r = e.auraRadius * 0.75 + noise;
+                    const px = sx + Math.cos(a) * r;
+                    const py = sy + Math.sin(a) * r;
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fillStyle = `rgba(20, 80, 10, ${0.08 + pulse * 0.06})`;
+                ctx.fill();
+                ctx.restore();
+            
+                ctx.save();
+                ctx.shadowColor = "#22aa11";
+                ctx.shadowBlur = 25 * pulse;
+                ctx.beginPath();
+                ctx.moveTo(sx,              sy - s);
+                ctx.lineTo(sx + s * 0.866, sy + s * 0.5);
+                ctx.lineTo(sx - s * 0.866, sy + s * 0.5);
+                ctx.closePath();
+                ctx.fillStyle = e.hitTimer > 0 ? "#aaffaa" : "#1a4d0a";
+                ctx.fill();
+                ctx.strokeStyle = e.hitTimer > 0 ? "white" : "#44cc22";
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.restore();
+            
+                ctx.save();
+                ctx.translate(sx, sy);
+                ctx.rotate(-time * 0.4);
+                ctx.beginPath();
+                ctx.moveTo(0,           -s * 0.45);
+                ctx.lineTo( s * 0.39,   s * 0.225);
+                ctx.lineTo(-s * 0.39,   s * 0.225);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(80, 200, 40, ${pulse * 0.6})`;
+                ctx.fill();
+                ctx.restore();
+            
+                const barW = 70, barH = 5;
+                const bx = sx - barW / 2;
+                const by = sy - s - 12;
+                ctx.fillStyle = "#333";
+                ctx.fillRect(bx, by, barW, barH);
+                ctx.fillStyle = "#44cc22";
+                ctx.fillRect(bx, by, barW * (e.health / e.maxHealth), barH);
+                ctx.strokeStyle = "rgba(255,255,255,0.4)";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(bx, by, barW, barH);
+            
+                continue;
+            }
+
+
             const time = performance.now() * 0.001;
             const pulse = 0.7 + 0.3 * Math.sin(time * 2);
+            const isSplitter = e.bossType === "splitter";
+            const baseColor  = isSplitter ? "#003366" : "#8b0000";
+            const glowColor  = isSplitter ? "#0088ff" : "#ff2200";
+            const innerColor = isSplitter ? "#0044cc" : "#ff3c00";
         
             ctx.save();
-            ctx.shadowColor = "#ff2200";
+            ctx.shadowColor = glowColor;
             ctx.shadowBlur = 30 * pulse;
         
             ctx.beginPath();
-            ctx.moveTo(sx,         sy - s);           
-            ctx.lineTo(sx + s * 0.866, sy + s * 0.5); 
-            ctx.lineTo(sx - s * 0.866, sy + s * 0.5); 
+            ctx.moveTo(sx,               sy - s);
+            ctx.lineTo(sx + s * 0.866,   sy + s * 0.5);
+            ctx.lineTo(sx - s * 0.866,   sy + s * 0.5);
             ctx.closePath();
-            ctx.fillStyle = e.hitTimer > 0 ? "#ff88ff" : "#8b0000";
+            ctx.fillStyle = e.hitTimer > 0 ? "#ffffff" : baseColor;
             ctx.fill();
-            ctx.strokeStyle = e.hitTimer > 0 ? "white" : "#ff2200";
+            ctx.strokeStyle = e.hitTimer > 0 ? "white" : glowColor;
             ctx.lineWidth = 2.5;
             ctx.stroke();
             ctx.restore();
         
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(time * 1.5);
+            ctx.rotate(time * (isSplitter ? -2 : 1.5));
             ctx.beginPath();
-            ctx.moveTo(0,              -s * 0.45);
-            ctx.lineTo( s * 0.39,  s * 0.225);
-            ctx.lineTo(-s * 0.39,  s * 0.225);
+            ctx.moveTo(0,           -s * 0.45);
+            ctx.lineTo( s * 0.39,   s * 0.225);
+            ctx.lineTo(-s * 0.39,   s * 0.225);
             ctx.closePath();
-            ctx.fillStyle = `rgba(255, 60, 0, ${pulse * 0.7})`;
+            ctx.fillStyle = `rgba(${isSplitter ? "0,120,255" : "255,60,0"}, ${pulse * 0.7})`;
             ctx.fill();
             ctx.restore();
         
-            const barW = 60, barH = 5;
+            if (isSplitter) {
+                const dotsLeft = 2 - e.generation;
+                for (let d = 0; d < dotsLeft; d++) {
+                    ctx.beginPath();
+                    ctx.arc(sx - 8 + d * 16, sy + s + 10, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = "#0088ff";
+                    ctx.fill();
+                }
+            }
+        
+            const barW = isSplitter ? 50 : 60, barH = 5;
             const bx = sx - barW / 2;
             const by = sy - s - 12;
             ctx.fillStyle = "#333";
             ctx.fillRect(bx, by, barW, barH);
-            ctx.fillStyle = "#ff2200";
+            ctx.fillStyle = glowColor;
             ctx.fillRect(bx, by, barW * (e.health / e.maxHealth), barH);
             ctx.strokeStyle = "rgba(255,255,255,0.4)";
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
         
-            continue; 
+            continue;
         }
 
         ctx.fillStyle = "rgba(0,0,0,0.4)";
