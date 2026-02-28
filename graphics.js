@@ -1,4 +1,12 @@
 import { BasePlayerLogic } from "./logic.js";
+
+import { 
+    SHOP_ITEMS, 
+    getOwnedLevels, 
+    buyItem, 
+    resetShop 
+} from "./shop.js";
+
 const _evalInstance = new BasePlayerLogic();
 const evaluateHand = (cards) => _evalInstance.evaluateHand(cards);
 
@@ -938,9 +946,17 @@ export function drawGameOverScreen(state) {
         ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, canvas.height / 2 + 60);
     }
 
+    ctx.font = "bold 22px monospace";
+    ctx.fillStyle = "#FFD700";
+    ctx.fillText(`⬡ +${state.sessionCoins || 0} coins earned`, canvas.width / 2, canvas.height / 2 + 95);
+
+    ctx.font = "16px monospace";
+    ctx.fillStyle = "#aaa";
+    ctx.fillText(`Total: ⬡ ${state.coins || 0}`, canvas.width / 2, canvas.height / 2 + 120);
+
     ctx.font = "18px monospace";
     ctx.fillStyle = "#aaa";
-    ctx.fillText("press R to restart", canvas.width / 2, canvas.height / 2 + 100);
+    ctx.fillText("R to restart · Esc to return to menu", canvas.width / 2, canvas.height / 2 + 160);
 }
 
 export function drawNotifications(notifications) {
@@ -1170,19 +1186,19 @@ export function drawPlayerSelectScreen(selectedChoice, bestTimes = {}) {
             key: "shooter",
             title: "SHOOTER",
             desc: "Fires bullets at the nearest enemy",
-            icon: "X",
-        },
-        {
-            key: "zapper",
-            title: "ZAPPER",
-            desc: "Zaps a random enemy in range instantly",
-            icon: "Z",
+            icon: "Ξ",
         },
         {
             key: "trapper",
             title: "TRAPPER",
             desc: "Places proximity mines",
-            icon: "T",
+            icon: "Π",
+        },
+        {
+            key: "zapper",
+            title: "ZAPPER",
+            desc: "Zaps a random enemy in range instantly",
+            icon: "Σ",
         },
     ];
 
@@ -1213,6 +1229,7 @@ export function drawPlayerSelectScreen(selectedChoice, bestTimes = {}) {
 
         ctx.font = "48px monospace";
         ctx.textAlign = "center";
+        ctx.fillStyle = isActive ? "#FFD700" : "white";;
         ctx.fillText(opt.icon, x + cardW / 2, cardY + 65);
 
         ctx.font = `bold 22px monospace`;
@@ -1237,42 +1254,122 @@ export function drawPlayerSelectScreen(selectedChoice, bestTimes = {}) {
         }
         ctx.fillText(line.trim(), x + cardW / 2, lineY);
 
-        const best = bestTimes[opt.key] || 0;
-        const MAX_TIME = 600;
-        const progress = Math.min(best / MAX_TIME, 1);
+        // const best = bestTimes[opt.key] || 0;
+        // const MAX_TIME = 600;
+        // const progress = Math.min(best / MAX_TIME, 1);
 
-        const barX = x + 10;
-        const barY = cardY + cardH - 28;
-        const barW = cardW - 20;
-        const barH = 6;
+        // const barX = x + 10;
+        // const barY = cardY + cardH - 28;
+        // const barW = cardW - 20;
+        // const barH = 6;
 
-        ctx.fillStyle = "rgba(255,255,255,0.1)";
-        ctx.fillRect(barX, barY, barW, barH);
+        // ctx.fillStyle = "rgba(255,255,255,0.1)";
+        // ctx.fillRect(barX, barY, barW, barH);
 
-        if (progress > 0) {
-            const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-            grad.addColorStop(0, isActive ? "#FFD700" : "#888");
-            grad.addColorStop(1, isActive ? "#ff8800" : "#555");
-            ctx.fillStyle = grad;
-            ctx.fillRect(barX, barY, barW * progress, barH);
-        }
+        // if (progress > 0) {
+        //     const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        //     grad.addColorStop(0, isActive ? "#FFD700" : "#888");
+        //     grad.addColorStop(1, isActive ? "#ff8800" : "#555");
+        //     ctx.fillStyle = grad;
+        //     ctx.fillRect(barX, barY, barW * progress, barH);
+        // }
 
-        ctx.strokeStyle = "rgba(255,255,255,0.15)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barW, barH);
+        // ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        // ctx.lineWidth = 1;
+        // ctx.strokeRect(barX, barY, barW, barH);
 
-        ctx.font = "11px monospace";
-        ctx.fillStyle = best > 0 ? (isActive ? "#FFD700" : "#888") : "#444";
-        ctx.textAlign = "center";
-        ctx.fillText(
-            best > 0 ? `Best: ${Math.floor(best / 60)}m ${Math.floor(best % 60)}s` : "No record",
-            x + cardW / 2,
-            barY + barH + 14
-        );
+        // ctx.font = "11px monospace";
+        // ctx.fillStyle = best > 0 ? (isActive ? "#FFD700" : "#888") : "#444";
+        // ctx.textAlign = "center";
+        // ctx.fillText(
+        //     best > 0 ? `Best: ${Math.floor(best / 60)}m ${Math.floor(best % 60)}s` : "No record",
+        //     x + cardW / 2,
+        //     barY + barH + 14
+        // );
     });
     
     ctx.font = "16px monospace";
     ctx.fillStyle = "#aaa";
     ctx.textAlign = "center";
-    ctx.fillText("← → to choose · Enter to confirm", canvas.width / 2, canvas.height / 2 + cardH / 2 + 40);
+    ctx.fillText("← → to choose · Enter to confirm · S for shop", canvas.width / 2, canvas.height / 2 + cardH / 2 + 40);
+}
+
+export function drawShopScreen(shopState) {
+    const { items, owned, coins, selectedIndex } = shopState;
+
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = "center";
+    ctx.font = "bold 48px monospace";
+    ctx.fillStyle = "#FFD700";
+    ctx.fillText("SHOP", canvas.width / 2, 80);
+
+    ctx.font = "bold 24px monospace";
+    ctx.fillStyle = "#FFD700";
+    ctx.fillText(`⬡ ${coins} coins`, canvas.width / 2, 130);
+
+    ctx.font = "14px monospace";
+    ctx.fillStyle = "#666";
+    ctx.fillText("↑ ↓ to browse · Enter to buy · Esc / P to play", canvas.width / 2, 160);
+
+    const itemH = 80;
+    const panelW = 600;
+    const startY = 200;
+    const panelX = canvas.width / 2 - panelW / 2;
+
+    items.forEach((item, i) => {
+        const y = startY + i * (itemH + 10);
+        const isSelected = i === selectedIndex;
+        const level = owned[item.id] || 0;
+        const isMaxed = level >= item.maxLevel;
+        const cost = isMaxed ? null : item.cost * (level + 1);
+        const canAfford = cost !== null && coins >= cost;
+
+        ctx.fillStyle = isSelected ? "#1a1a2e" : "#111";
+        ctx.fillRect(panelX, y, panelW, itemH);
+        ctx.strokeStyle = isSelected ? "#FFD700" : "rgba(255,255,255,0.1)";
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.strokeRect(panelX, y, panelW, itemH);
+
+        const pipSize = 8;
+        const pipSpacing = 12;
+        for (let p = 0; p < item.maxLevel; p++) {
+            ctx.beginPath();
+            ctx.arc(panelX + 20 + p * pipSpacing, y + 15, pipSize / 2, 0, Math.PI * 2);
+            ctx.fillStyle = p < level ? "#FFD700" : "#333";
+            ctx.fill();
+        }
+
+        ctx.font = "bold 18px monospace";
+        ctx.fillStyle = isMaxed ? "#888" : (isSelected ? "#FFD700" : "white");
+        ctx.textAlign = "left";
+        ctx.fillText(item.name, panelX + 20, y + 42);
+
+        ctx.font = "13px monospace";
+        ctx.fillStyle = "#aaa";
+        ctx.fillText(item.desc, panelX + 20, y + 62);
+
+        ctx.textAlign = "right";
+        if (isMaxed) {
+            ctx.font = "bold 14px monospace";
+            ctx.fillStyle = "#FFD700";
+            ctx.fillText("MAXED", panelX + panelW - 20, y + 45);
+        } else {
+            ctx.font = "bold 18px monospace";
+            ctx.fillStyle = canAfford ? "#FFD700" : "#555";
+            ctx.fillText(`⬡ ${cost}`, panelX + panelW - 20, y + 45);
+        }
+    });
+
+    ctx.font = "13px monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = shopState.resetConfirm ? "#ff4444" : "#444";
+    ctx.fillText(
+        shopState.resetConfirm 
+            ? "⚠ Press X again to confirm reset (no refund)" 
+            : "X to reset all upgrades (no refund)",
+        canvas.width / 2,
+        startY + SHOP_ITEMS.length * (itemH + 10) + 30
+    );
 }

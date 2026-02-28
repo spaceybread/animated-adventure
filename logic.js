@@ -1,3 +1,6 @@
+import { getStartingBonuses } from "./shop.js";
+
+
 export class BasePlayerLogic {
     constructor() {
         this.canvas = null;
@@ -54,6 +57,8 @@ export class BasePlayerLogic {
         this._laserSpawnTimer = 0;
         this._bossTimer = 60;
         this._truePlayerSpeed = 200;
+        this.sessionCoins = 0;
+        this.coins = 0;
 
         this.POWERUPS = [
             { name: "Speed Boost",   desc: "+50 speed for 10s",   apply: () => { this.playerSpeed += 50;      this._addTempEffect(() => this.playerSpeed -= 50, 10); } },
@@ -69,6 +74,18 @@ export class BasePlayerLogic {
 
     // ── init ────────────────────────────────────────────────────────
     initLogic(canvas) {
+        const bonuses = getStartingBonuses();
+        if (bonuses.startSpeed)    this.playerSpeed    += bonuses.startSpeed;
+        if (bonuses.startHealth)   this.maxPlayerHealth += bonuses.startHealth;
+        if (bonuses.startDamage)   this.bulletDamage   += bonuses.startDamage;
+        if (bonuses.startHandSize) this.maxHandSize     += bonuses.startHandSize;
+        if (bonuses.startDiscards) this.maxDiscards     += bonuses.startDiscards;
+        if (bonuses.startFireRate) this.shootInterval   = Math.max(0.1, this.shootInterval - bonuses.startFireRate);
+        
+        this.playerHealth = this.maxPlayerHealth;
+        this._shopBonuses = bonuses;
+
+        
         this.canvas = canvas;
         this.deck = this._shuffle(this._createDeck());
         this.hand = this.deck.splice(0, this.maxHandSize);
@@ -83,6 +100,9 @@ export class BasePlayerLogic {
         this.playerHealth = 100;
         this.bullets = [];
         this.items = [];
+
+        this.coins = parseInt(localStorage.getItem("coins") || "0");
+        this.sessionCoins = 0;
     }
 
     handleKeyDown(e) {
@@ -213,6 +233,8 @@ export class BasePlayerLogic {
             playerChoice: this.playerChoice,
             enemyBullets: this.enemyBullets,
             lasers: this.lasers,
+            sessionCoins: this.sessionCoins,
+            coins: parseInt(localStorage.getItem("coins") || "0"),
         };
     }
 
@@ -263,6 +285,8 @@ export class BasePlayerLogic {
         this.invincible = false;
         this._bossTimer = 60;
         this._truePlayerSpeed = 200;
+        this.sessionCoins = 0;
+        this.coins = 0;
 
     }
 
@@ -382,6 +406,14 @@ export class BasePlayerLogic {
         return "High Card";
     }
 
+    _refillHand() {
+        while (this.hand.length < this.maxHandSize) {
+            if (this.deck.length === 0) this.deck = this._shuffle(this._createDeck());
+            this.hand.push(this.deck.pop());
+        }
+        this._sortHand();
+    }
+
     _scoreSelectedCards(cards) {
         cards = [...cards].sort((a, b) => b.value - a.value);
         const result = this.evaluateHand(cards);
@@ -393,6 +425,7 @@ export class BasePlayerLogic {
             case "Royal Flush":
                 this.score += this.enemies.length * 256;
                 this.maxHandSize += 2;
+                this._refillHand();
                 this.bulletCountModifier += cards[4].value;
                 this.shootInterval = Math.max(0.1, this.shootInterval - 0.4);
                 this.enemies = [];
@@ -405,6 +438,7 @@ export class BasePlayerLogic {
                 break;
             case "Four of a Kind":
                 this.maxHandSize += 1;
+                this._refillHand();
                 this._addNotification("Four of a Kind", "+1 hand size");
                 break;
             case "Full House":
@@ -777,6 +811,7 @@ export class BasePlayerLogic {
                     this._addNotification("BOSS DEFEATED!", "★ +1000 score bonus · +1 hand size");
                     this.score += 1000;
                     this.maxHandSize += 1;
+                    this._refillHand();
                 }
         
                 if (this.currentStreak % 10 === 0)
@@ -784,6 +819,17 @@ export class BasePlayerLogic {
                 if (Math.random() < 0.30)
                     this.items.push({ x: e.x, y: e.y, type: Math.random() < 0.5 ? "powerup" : "apple" });
                 this._onEnemyDeath(e);
+                
+                const coinMap = {
+                    normal: 1,
+                    tank: 4,
+                    shooter: 2,
+                    boss: 25,
+                };
+                const earned = coinMap[e.type] || 1;
+                this.sessionCoins += earned;
+                this.coins += earned;
+
                 return false;
             }
             return true;
@@ -849,6 +895,9 @@ export class BasePlayerLogic {
         }
         this.playerHealth = Math.max(0, this.playerHealth);
         if (this.playerHealth === 0) {
+            
+            localStorage.setItem("coins", this.coins);
+            
             this.gameOver = true;
             this.score *= this.gameStageModifier;
             if (this.score > this.highScore) {
